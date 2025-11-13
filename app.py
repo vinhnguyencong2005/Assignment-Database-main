@@ -1,12 +1,14 @@
-from flask import Flask, render_template, request, flash, redirect
+from flask import Flask, render_template, request, flash, redirect, session
 import mysql.connector
 from mysql.connector import errorcode
+from decimal import Decimal
 
 from mock_data import get_mock_buyer_history, get_mock_top_sellers
 
 app = Flask(__name__, template_folder='template')
 # Thêm một "khóa bí mật" để Flask có thể gửi thông báo (flash messages)
 app.config['SECRET_KEY'] = 'your_secret_key_12345' 
+app.config['SESSION_PERMANENT'] = False
 
 # Bật/tắt sử dụng CSDL. Để phát triển UI/UX trước, đặt False để dùng dữ liệu giả
 USE_DB = False
@@ -36,10 +38,23 @@ def get_db_connection():
 # =================================================
 @app.route('/dashboard', methods=['GET', 'POST'])
 def dashboard():
-    # Dữ liệu mặc định
-    seller_results = []
-    buyer_history = None
-    buyer_id_lookup = None
+    # Lấy dữ liệu đã lưu trong session (nếu có) để tránh bị reset khi bấm form khác
+    seller_results = session.get('seller_results', [])
+    buyer_history = session.get('buyer_history')
+    buyer_id_lookup = session.get('buyer_id')
+
+    def serialize_rows(rows):
+        """Chuyển đổi các kiểu dữ liệu không tuần tự hóa được (ví dụ Decimal) sang kiểu chuẩn."""
+        serialized = []
+        for row in rows:
+            serialized_row = {}
+            for key, value in row.items():
+                if isinstance(value, Decimal):
+                    serialized_row[key] = float(value)
+                else:
+                    serialized_row[key] = value
+            serialized.append(serialized_row)
+        return serialized
 
     # Khi người dùng nhấn nút (gửi form)
     if request.method == 'POST':
@@ -73,11 +88,13 @@ def dashboard():
                         rows = result.fetchall()
                         if rows:
                             collected.extend(rows)
-                    seller_results = collected
+                    seller_results = serialize_rows(collected)
                     flash(f"Đã tìm thấy {len(seller_results)} cửa hàng.", "success")
                 else:
                     seller_results = get_mock_top_sellers(top_n, min_revenue)
                     flash("Đang dùng dữ liệu giả (mock) vì chưa kết nối DB.", "warning")
+
+                session['seller_results'] = seller_results
 
             elif form_type == 'buyer_history':
                 # --- Xử lý Form 2: Lịch sử mua (Demo Function của Người 6) ---
@@ -107,6 +124,8 @@ def dashboard():
                                 flash("Không tìm thấy lịch sử mua hàng trong dữ liệu mock.", "warning")
                             else:
                                 flash("Đang dùng dữ liệu giả (mock) vì chưa kết nối DB.", "warning")
+                        session['buyer_history'] = buyer_history
+                        session['buyer_id'] = buyer_id_lookup
                 else:
                     flash("Vui lòng nhập ID người mua.", "warning")
 
