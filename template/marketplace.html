@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Thị Trường - ShoppeDB</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        /* Hiệu ứng Fade Out cho thông báo */
+        .fade-out {
+            opacity: 0;
+            transform: translateY(-20px);
+            transition: opacity 0.5s ease, transform 0.5s ease;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 flex flex-col h-screen relative">
+
+    <!-- Header -->
+    <header class="bg-black text-white h-12 flex items-center px-6 shrink-0">
+        <nav class="flex gap-6 h-full">
+            <a href="/dashboard" class="h-full flex items-center px-2 text-gray-300 hover:text-white">Dashboard</a>
+            <a href="/productManagement" class="h-full flex items-center px-2 text-gray-300 hover:text-white">Quản lý Kho</a>
+            <a href="/marketplace" class="h-full flex items-center px-2 text-red-500 border-b-4 border-red-600 font-bold">Thị Trường</a>
+        </nav>
+        <div class="ml-auto text-sm text-gray-400">
+            Seller #{{ session.get('user_id') }} | <a href="/logout" class="text-white hover:underline">Đăng xuất</a>
+        </div>
+    </header>
+
+    <!-- ============================================================== -->
+    <!-- POPUP THÔNG BÁO  -->
+    <!-- ============================================================== -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        <div id="toast-container" class="fixed top-10 left-1/2 transform -translate-x-1/2 z-50 flex flex-col gap-2 w-auto max-w-lg pointer-events-none">
+            {% for category, message in messages %}
+            <div class="toast-message pointer-events-auto flex items-center gap-3 px-6 py-4 rounded-lg shadow-2xl border-l-4 transition-all duration-300 transform translate-y-0 opacity-100
+                        {{ 'bg-white text-gray-800 border-green-500' if category == 'success' else 'bg-white text-gray-800 border-red-500' }}">
+                
+                <!-- Icon -->
+                <div class="{{ 'text-green-500' if category == 'success' else 'text-red-500' }}">
+                    {% if category == 'success' %}
+                        <i class="fas fa-check-circle text-2xl"></i>
+                    {% else %}
+                        <i class="fas fa-exclamation-triangle text-2xl"></i>
+                    {% endif %}
+                </div>
+
+                <!-- Nội dung -->
+                <div class="flex flex-col">
+                    <span class="font-bold text-sm uppercase {{ 'text-green-600' if category == 'success' else 'text-red-600' }}">
+                        {{ 'Thành công' if category == 'success' else 'Thất bại' }}
+                    </span>
+                    <span class="text-sm font-medium">{{ message }}</span>
+                </div>
+
+                <!-- Nút tắt nhanh -->
+                <button onclick="this.parentElement.remove()" class="ml-4 text-gray-400 hover:text-gray-600">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    {% endwith %}
+    <!-- ============================================================== -->
+
+    <!-- Search Bar -->
+    <div class="bg-red-100 p-4 shrink-0">
+        <form action="/marketplace" method="POST" class="flex gap-4 items-end flex-wrap">
+            <!-- Từ khóa (Keyword) -->
+            <div class="flex-1 min-w-[200px]">
+                <label class="block text-sm font-semibold text-gray-700 mb-1">Từ khóa</label>
+                <input type="text" name="keyword" placeholder="Tên sản phẩm, mô tả..." 
+                       value="{{ request.form.get('keyword') or request.args.get('keyword') or '' }}"
+                       class="w-full px-3 py-2 border border-gray-400 rounded shadow-sm focus:outline-none focus:border-red-500">
+            </div>
+            
+            <!-- Danh mục (Category) -->
+            <div class="min-w-[150px]">
+                <label class="block text-sm font-semibold text-gray-700 mb-1">Danh mục</label>
+                <select name="category_id" class="w-full px-3 py-2 border border-gray-400 rounded shadow-sm focus:outline-none focus:border-red-500">
+                    <option value="">Tất cả</option>
+                    {% if categories %}
+                        {% for cat in categories %}
+                            <option value="{{ cat.category_id }}" 
+                                    {% if (request.form.get('category_id') or request.args.get('category_id')) == cat.category_id|string %}selected{% endif %}>
+                                {{ cat.category_name }}
+                            </option>
+                        {% endfor %}
+                    {% endif %}
+                </select>
+            </div>
+            
+            <!-- Giá tối thiểu (Min Price) -->
+            <div class="min-w-[120px]">
+                <label class="block text-sm font-semibold text-gray-700 mb-1">Giá tối thiểu</label>
+                <input type="number" name="min_price" placeholder="0" min="0" step="1000"
+                       value="{{ request.form.get('min_price') or request.args.get('min_price') or '' }}"
+                       class="w-full px-3 py-2 border border-gray-400 rounded shadow-sm focus:outline-none focus:border-red-500">
+            </div>
+            
+            <!-- Giá tối đa (Max Price) -->
+            <div class="min-w-[120px]">
+                <label class="block text-sm font-semibold text-gray-700 mb-1">Giá tối đa</label>
+                <input type="number" name="max_price" placeholder="999999999" min="0" step="1000"
+                       value="{{ request.form.get('max_price') or request.args.get('max_price') or '' }}"
+                       class="w-full px-3 py-2 border border-gray-400 rounded shadow-sm focus:outline-none focus:border-red-500">
+            </div>
+            
+            <!-- Nút tìm kiếm -->
+            <div>
+                <button type="submit" class="bg-red-600 text-white px-6 py-2 rounded hover:bg-red-700 shadow-md font-semibold flex items-center gap-2">
+                    <i class="fas fa-search"></i>
+                    Tìm kiếm
+                </button>
+            </div>
+            
+            <!-- Nút reset (hiển thị tất cả) -->
+            <div>
+                <a href="/marketplace" class="bg-gray-500 text-white px-6 py-2 rounded hover:bg-gray-600 shadow-md font-semibold inline-block">
+                    Xóa bộ lọc
+                </a>
+            </div>
+        </form>
+    </div>
+
+    <!-- Main Table -->
+    <main class="flex-grow overflow-auto">
+        <table class="w-full border-collapse">
+            <thead class="sticky top-0 z-10">
+                <tr class="bg-gray-300 text-gray-800 font-semibold text-sm uppercase text-center">
+                    <th class="py-3 px-4 border-b border-gray-400 w-32 bg-gray-300">Ảnh</th>
+                    <th class="py-3 px-4 border-b border-gray-400 bg-gray-300">Mã SP</th>
+                    <th class="py-3 px-4 border-b border-gray-400 w-1/5 bg-gray-300">Tên sản phẩm</th>
+                    <th class="py-3 px-4 border-b border-gray-400 bg-gray-300">Danh mục</th>
+                    <th class="py-3 px-4 border-b border-gray-400 bg-gray-300">Tồn kho</th>
+                    <th class="py-3 px-4 border-b border-gray-400 w-1/4 bg-gray-300">Cửa hàng</th>
+                    <th class="py-3 px-4 border-b border-gray-400 bg-gray-300">Giá (VND)</th>
+                </tr>
+            </thead>
+            <tbody class="bg-white text-center text-gray-700">
+                {% if products %}
+                    {% for p in products %}
+                    <tr class="border-b border-gray-200 hover:bg-gray-50">
+                        <td class="py-2 px-4">
+                            {% if p.image_link and 'http' in p.image_link %}
+                                <img src="{{ p.image_link }}" alt="Img" class="h-12 mx-auto object-contain" onerror="this.src='https://via.placeholder.com/50?text=No+Img'">
+                            {% else %}
+                                <span class="text-xs text-gray-400">No Image</span>
+                            {% endif %}
+                        </td>
+                        <td class="py-2 px-4 font-medium">{{ p.product_id }}</td>
+                        <td class="py-2 px-4 text-left font-medium">{{ p.product_name }}</td>
+                        <td class="py-2 px-4">{{ p.category_name }}</td>
+                        <td class="py-2 px-4 font-semibold">{{ p.total_stock or 0 }}</td>
+                        <td class="py-2 px-4 text-left text-sm">{{ p.store_names or 'Chưa có' }}</td>
+                        <td class="py-2 px-4 font-bold text-red-600">{{ "{:,.0f}".format(p.price) }}</td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="7" class="py-8 text-gray-500">Không tìm thấy sản phẩm nào.</td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </main>
+
+    <!-- Footer -->
+    <div class="bg-red-100 p-4 flex justify-center items-center border-t border-gray-300 shrink-0">
+        <div class="flex items-center gap-2 text-gray-800 font-medium">
+            <!-- Pagination -->
+            <i class="fas fa-caret-left text-2xl cursor-pointer text-gray-400"></i>
+            <span class="px-2 border-b-2 border-black font-bold">1</span>
+            <i class="fas fa-caret-right text-2xl cursor-pointer text-gray-400"></i>
+        </div>
+    </div>
+
+    <!-- TỰ ĐỘNG TẮT THÔNG BÁO -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const toasts = document.querySelectorAll('.toast-message');
+            
+            if (toasts.length > 0) {
+                setTimeout(() => {
+                    toasts.forEach(toast => {
+                        toast.classList.add('fade-out');
+                        setTimeout(() => {
+                            toast.remove();
+                        }, 500);
+                    });
+                }, 3000);
+            }
+        });
+    </script>
+
+</body>
+</html>
+

@@ -1,55 +1,93 @@
-from flask import Flask, render_template, request, flash, redirect, session
+from flask import Flask, render_template, request, flash, redirect, session, url_for
 import mysql.connector
-from mysql.connector import errorcode
 from decimal import Decimal
-
 from mock_data import get_mock_buyer_history, get_mock_top_sellers
 
 app = Flask(__name__, template_folder='template')
-# Thêm một "khóa bí mật" để Flask có thể gửi thông báo (flash messages)
 app.config['SECRET_KEY'] = 'your_secret_key_12345' 
 app.config['SESSION_PERMANENT'] = False
 
-# Bật/tắt sử dụng CSDL. Để phát triển UI/UX trước, đặt False để dùng dữ liệu giả
 USE_DB = True
 
-# Cấu hình kết nối CSDL MySQL
-# LƯU Ý: Cần cập nhật thông tin kết nối database của bạn:
-# 1. Đảm bảo đã chạy file SQL để tạo database ShoppeDB và các stored procedures/functions
-# 2. Cập nhật host, user, password phù hợp với MySQL server của bạn
-# 3. Database name phải là 'ShoppeDB' (khớp với file database objects.sql)
+# --- CẤU HÌNH DB ---
 db_config = {
     'host': 'localhost',
     'user': 'root',
-    'password': 'giabao123',  # <-- Cập nhật mật khẩu MySQL của bạn tại đây
-    'database': 'ShoppeDB',  # Đã sửa từ ShopeeDB thành ShoppeDB để khớp với SQL file
-    'charset': 'utf8mb4',  # Thêm charset UTF-8 để hỗ trợ tiếng Việt
+    'password': 'giabao123', 
+    'database': 'ShoppeDB',
+    'charset': 'utf8mb4',
     'use_unicode': True
 }
 
-# Hàm giúp kết nối CSDL, có xử lý lỗi
 def get_db_connection():
     try:
         conn = mysql.connector.connect(**db_config)
         return conn
     except mysql.connector.Error as err:
         print(f"Lỗi kết nối CSDL: {err}")
-        # Không thể dùng flash() ở đây vì không có request context
-        # Lỗi sẽ được xử lý ở nơi gọi hàm này
         return None
 
 # =================================================
-# TRANG CỦA LEADER (Dashboard - Phần 3.3)
+# BASIC ROUTES
+# =================================================
+@app.route('/')
+def index():
+    return redirect('/login')
+
+@app.route('/logout')
+def logout():
+    session.clear()
+    return redirect('/login')
+
+# =================================================
+# LOGIN
+# =================================================
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if 'user_id' in session and session.get('role') == 'seller':
+        return redirect('/productManagement')
+
+    if request.method == 'GET':
+        return render_template('login.html')
+    
+    user_id = request.form.get('user_id')
+    role = request.form.get('role')
+
+    conn = get_db_connection()
+    if not conn:
+        flash("Lỗi kết nối Database!", "error")
+        return redirect('/login')
+    
+    cursor = conn.cursor(dictionary=True)
+    if role == 'seller':
+        try:
+            cursor.execute("SELECT * FROM sellers WHERE user_id = %s", (user_id,))
+            seller = cursor.fetchone()
+            if seller:
+                session['user_id'] = user_id
+                session['role'] = 'seller'
+                flash("Đăng nhập thành công!", "success")
+                return redirect('/productManagement')
+            else:
+                flash(f"User ID {user_id} không hợp lệ.", "error")
+        except Exception as e:
+            flash(f"Lỗi: {e}", "error")
+        finally:
+            cursor.close()
+            conn.close()
+            
+    return redirect('/login')
+
+# =================================================
+# DASHBOARD (Leader)
 # =================================================
 @app.route('/dashboard', methods=['GET', 'POST'])
 def dashboard():
-    # Lấy dữ liệu đã lưu trong session (nếu có) để tránh bị reset khi bấm form khác
     seller_results = session.get('seller_results', [])
     buyer_history = session.get('buyer_history')
     buyer_id_lookup = session.get('buyer_id')
 
     def serialize_rows(rows):
-        """Chuyển đổi các kiểu dữ liệu không tuần tự hóa được (ví dụ Decimal) sang kiểu chuẩn."""
         serialized = []
         for row in rows:
             serialized_row = {}
@@ -61,163 +99,421 @@ def dashboard():
             serialized.append(serialized_row)
         return serialized
 
-    # Khi người dùng nhấn nút (gửi form)
     if request.method == 'POST':
-        conn = None if not USE_DB else get_db_connection()
-        
-        # Nếu kết nối thất bại, hiển thị thông báo lỗi
-        if conn is None and USE_DB:
-            flash("Lỗi: Không thể kết nối đến cơ sở dữ liệu. Vui lòng kiểm tra cấu hình.", "error")
-            return render_template('dashboard.html', 
-                                   sellers=None, 
-                                   history=None, 
-                                   buyer_id=None)
-
+        conn = get_db_connection() if USE_DB else None
         cursor = conn.cursor(dictionary=True) if conn else None
 
         try:
-            # Kiểm tra xem form nào được gửi đi
             form_type = request.form.get('form_type')
 
             if form_type == 'top_sellers':
-                # --- Xử lý Form 1: Top Sellers (Demo SP của Người 5) ---
                 top_n = request.form.get('top_n', default=5, type=int)
                 min_revenue = request.form.get('min_revenue', default=0, type=float)
                 
-                if conn and cursor:
-                    # Kiểm tra tổng số sellers trong hệ thống
-                    cursor.execute("SELECT COUNT(*) as total_sellers FROM sellers")
-                    total_sellers_result = cursor.fetchone()
-                    total_sellers = total_sellers_result['total_sellers'] if total_sellers_result else 0
-                    
-                    # 1. Gọi SP 'sp_GetTopSellers'
+                if conn:
                     cursor.callproc('sp_GetTopSellers', (top_n, min_revenue))
-                    # 2. Lấy kết quả
                     collected = []
                     for result in cursor.stored_results():
-                        rows = result.fetchall()
-                        if rows:
-                            collected.extend(rows)
+                        collected.extend(result.fetchall())
                     seller_results = serialize_rows(collected)
-                    
-                    # Hiển thị thông báo chi tiết
-                    if len(seller_results) == 0:
-                        flash(f"Không tìm thấy seller nào có doanh thu > {min_revenue:,.0f} VND. (Stored procedure chỉ trả về sellers có đơn hàng đã thanh toán - Paid)", "warning")
-                    elif len(seller_results) < top_n:
-                        flash(f"Đã tìm thấy {len(seller_results)}/{top_n} sellers có doanh thu > {min_revenue:,.0f} VND. (Chỉ có {len(seller_results)} sellers có đơn hàng đã thanh toán - Paid. Tổng số sellers trong hệ thống: {total_sellers})", "info")
-                    else:
-                        flash(f"Đã tìm thấy {len(seller_results)} sellers có doanh thu > {min_revenue:,.0f} VND.", "success")
+                    flash(f"Tìm thấy {len(seller_results)} kết quả.", "success")
                 else:
                     seller_results = get_mock_top_sellers(top_n, min_revenue)
-                    flash("Đang dùng dữ liệu giả (mock) vì chưa kết nối DB.", "warning")
-
+                    flash("Dữ liệu Mock.", "warning")
                 session['seller_results'] = seller_results
 
             elif form_type == 'buyer_history':
-                # --- Xử lý Form 2: Lịch sử mua (Demo Function của Người 6) ---
                 buyer_id = request.form.get('buyer_id')
-                buyer_id_lookup = buyer_id # Lưu lại để hiển thị trên form
-
-                if buyer_id:
+                buyer_id_lookup = buyer_id
+                
+                if buyer_id and conn:
                     try:
-                        buyer_id_int = int(buyer_id)
-                    except ValueError:
-                        flash("ID người mua phải là số nguyên.", "warning")
-                        buyer_id_int = None
+                        bid = int(buyer_id)
+                        cursor.execute("SELECT fn_GetBuyerPurchaseHistory(%s) AS history", (bid,))
+                        res = cursor.fetchone()
+                        buyer_history = res['history'] if res else None
+                        if buyer_history: flash("Đã lấy lịch sử mua hàng.", "success")
+                        else: flash("Không có lịch sử mua hàng.", "warning")
+                    except ValueError: flash("ID phải là số.", "error")
+                
+                session['buyer_history'] = buyer_history
+                session['buyer_id'] = buyer_id_lookup
 
-                    if buyer_id_int is not None:
-                        if conn and cursor:
-                            # Kiểm tra buyer có tồn tại không
-                            cursor.execute("SELECT 1 FROM buyers WHERE user_id = %s", (buyer_id_int,))
-                            if not cursor.fetchone():
-                                buyer_history = None
-                                flash(f"Buyer ID {buyer_id_int} không tồn tại trong hệ thống.", "error")
-                            else:
-                                # Kiểm tra buyer có đơn hàng không
-                                cursor.execute("""
-                                    SELECT COUNT(*) as order_count 
-                                    FROM orders o 
-                                    WHERE o.user_id = %s
-                                """, (buyer_id_int,))
-                                order_result = cursor.fetchone()
-                                has_orders = order_result['order_count'] > 0 if order_result else False
-                                
-                                # Kiểm tra đơn hàng đã thanh toán và giao hàng
-                                cursor.execute("""
-                                    SELECT COUNT(*) as delivered_count 
-                                    FROM orders o
-                                    JOIN payment p ON o.order_id = p.order_id
-                                    JOIN shipment s ON o.order_id = s.order_id
-                                    WHERE o.user_id = %s
-                                      AND p.payment_status = 'Paid'
-                                      AND s.status = 'Delivered'
-                                """, (buyer_id_int,))
-                                delivered_result = cursor.fetchone()
-                                delivered_count = delivered_result['delivered_count'] if delivered_result else 0
-                                
-                                # 1. Gọi Function 'fn_GetBuyerPurchaseHistory'
-                                query = "SELECT fn_GetBuyerPurchaseHistory(%s) AS history"
-                                cursor.execute(query, (buyer_id_int,))
-                                # 2. Lấy kết quả
-                                result = cursor.fetchone()
-                                if result is not None and 'history' in result:
-                                    buyer_history = result['history']
-                                    # Kiểm tra nếu kết quả là chuỗi rỗng hoặc None
-                                    if buyer_history and buyer_history.strip():
-                                        flash(f"Đã lấy lịch sử cho Buyer ID {buyer_id_int}. ({delivered_count} đơn đã giao hàng)", "success")
-                                    else:
-                                        buyer_history = None
-                                        if has_orders:
-                                            flash(f"Buyer ID {buyer_id_int} có đơn hàng nhưng chưa có đơn nào đã thanh toán và giao hàng thành công. (Function chỉ trả về đơn hàng đã Paid + Delivered)", "warning")
-                                        else:
-                                            flash(f"Buyer ID {buyer_id_int} chưa có đơn hàng nào.", "warning")
-                                else:
-                                    buyer_history = None
-                                    if has_orders:
-                                        flash(f"Buyer ID {buyer_id_int} có đơn hàng nhưng chưa có đơn nào đã thanh toán và giao hàng thành công.", "warning")
-                                    else:
-                                        flash(f"Buyer ID {buyer_id_int} chưa có đơn hàng nào.", "warning")
-                        else:
-                            buyer_history = get_mock_buyer_history(buyer_id_int)
-                            if buyer_history is None:
-                                flash("Không tìm thấy lịch sử mua hàng trong dữ liệu mock.", "warning")
-                            else:
-                                flash("Đang dùng dữ liệu giả (mock) vì chưa kết nối DB.", "warning")
-                        session['buyer_history'] = buyer_history
-                        session['buyer_id'] = buyer_id_lookup
-                else:
-                    flash("Vui lòng nhập ID người mua.", "warning")
-
-        except mysql.connector.Error as err:
-            # Bắt lỗi nếu SP hoặc Function không tồn tại
-            if err.errno == 1305: # 1305 = PROCEDURE/FUNCTION does not exist
-                flash(f"Lỗi: {err.msg}. Team DB đã chạy file SQL logic chưa?", "error")
-            else:
-                flash(f"Lỗi SQL: {err.msg}", "error")
+        except Exception as e:
+            flash(f"Lỗi: {e}", "error")
         finally:
-            if cursor:
-                cursor.close()
-            if conn:
-                conn.close()
+            if cursor: cursor.close()
+            if conn: conn.close()
 
-    # Render trang HTML (kể cả khi là 'GET' hay 'POST')
-    return render_template(
-        'dashboard.html', 
-        sellers=seller_results, 
-        history=buyer_history,
-        buyer_id=buyer_id_lookup
-    )
+    return render_template('dashboard.html', sellers=seller_results, history=buyer_history, buyer_id=buyer_id_lookup)
 
-# Điều hướng trang chủ về dashboard để tiện truy cập
-@app.route('/')
-def index():
-    return redirect('/dashboard')
+# =================================================
+# PRODUCT MANAGEMENT 
+# =================================================
+@app.route('/productManagement', methods=['GET', 'POST'])
+def product_management():
+    if 'user_id' not in session or session.get('role') != 'seller':
+        return redirect('/login')
+    
+    seller_id = session['user_id']
+    conn = get_db_connection()
+    products = []
+    categories = []
+    
+    if conn:
+        cursor = conn.cursor(dictionary=True)
+        try:
+            # Lấy danh sách categories để hiển thị dropdown
+            cursor.execute("SELECT category_id, category_name FROM category ORDER BY category_id")
+            categories = cursor.fetchall()
+            
+            # Xử lý tìm kiếm nếu có
+            if request.method == 'POST' or (request.method == 'GET' and any([
+                request.args.get('keyword'),
+                request.args.get('category_id'),
+                request.args.get('min_price'),
+                request.args.get('max_price')
+            ])):
+                # Lấy các tham số từ form hoặc query string
+                keyword = request.form.get('keyword') or request.args.get('keyword') or None
+                category_id = request.form.get('category_id') or request.args.get('category_id') or None
+                min_price = request.form.get('min_price') or request.args.get('min_price') or None
+                max_price = request.form.get('max_price') or request.args.get('max_price') or None
+                
+                # Chuyển đổi kiểu dữ liệu
+                if category_id:
+                    try:
+                        category_id = int(category_id)
+                    except ValueError:
+                        category_id = None
+                
+                if min_price:
+                    try:
+                        min_price = float(min_price)
+                    except ValueError:
+                        min_price = None
+                
+                if max_price:
+                    try:
+                        max_price = float(max_price)
+                    except ValueError:
+                        max_price = None
+                
+                # Gọi stored procedure sp_SearchProducts
+                try:
+                    cursor.callproc('sp_SearchProducts', (
+                        keyword if keyword else None,
+                        category_id if category_id else None,
+                        min_price if min_price else None,
+                        max_price if max_price else None
+                    ))
+                    
+                    # Lấy kết quả từ stored procedure
+                    search_results = []
+                    for result in cursor.stored_results():
+                        search_results.extend(result.fetchall())
+                    
+                    # Lấy danh sách product_id từ kết quả tìm kiếm
+                    product_ids = [r['product_id'] for r in search_results] if search_results else []
+                    
+                    # Lấy thông tin chi tiết của các sản phẩm thuộc seller
+                    if product_ids:
+                        placeholders = ','.join(['%s'] * len(product_ids))
+                        query = f"""
+                            SELECT 
+                                p.product_id, p.product_name, p.image_link, p.price,
+                                c.quantity_in_stock, i.update_at, s.store_name
+                            FROM sellers sel
+                            JOIN store s ON sel.user_id = s.user_id
+                            JOIN inventory i ON s.store_id = i.store_id
+                            JOIN contain c ON i.inventory_id = c.inventory_id
+                            JOIN products p ON c.product_id = p.product_id
+                            WHERE sel.user_id = %s
+                              AND p.product_id IN ({placeholders})
+                              AND p.product_name NOT LIKE '%[DELETED]%'
+                            ORDER BY p.product_id DESC
+                        """
+                        cursor.execute(query, (seller_id, *product_ids))
+                        products = cursor.fetchall()
+                    else:
+                        products = []
+                        
+                except mysql.connector.Error as err:
+                    flash(f"Lỗi tìm kiếm: {err.msg}", "error")
+                    products = []
+            else:
+                # Hiển thị tất cả sản phẩm của seller (không tìm kiếm)
+                query = """
+                    SELECT 
+                        p.product_id, p.product_name, p.image_link, p.price,
+                        c.quantity_in_stock, i.update_at, s.store_name
+                    FROM sellers sel
+                    JOIN store s ON sel.user_id = s.user_id
+                    JOIN inventory i ON s.store_id = i.store_id
+                    JOIN contain c ON i.inventory_id = c.inventory_id
+                    JOIN products p ON c.product_id = p.product_id
+                    WHERE sel.user_id = %s
+                      AND p.product_name NOT LIKE '%[DELETED]%'
+                    ORDER BY p.product_id DESC
+                """
+                cursor.execute(query, (seller_id,))
+                products = cursor.fetchall()
+                
+        except Exception as e:
+            flash(f"Lỗi lấy danh sách: {e}", "error")
+        finally:
+            cursor.close()
+            conn.close()
 
-# Thêm các route khác của nhóm bạn ở đây...
-# @app.route('/products') ... (Trang của Người 5)
-# @app.route('/product-form') ... (Trang của Người 4)
+    return render_template('productManagement.html', products=products, categories=categories)
 
+# =================================================
+# MARKETPLACE (Thị Trường - Hiển thị tất cả sản phẩm)
+# =================================================
+@app.route('/marketplace', methods=['GET', 'POST'])
+def marketplace():
+    if 'user_id' not in session or session.get('role') != 'seller':
+        return redirect('/login')
+    
+    conn = get_db_connection()
+    products = []
+    categories = []
+    
+    if conn:
+        cursor = conn.cursor(dictionary=True)
+        try:
+            # Lấy danh sách categories để hiển thị dropdown
+            cursor.execute("SELECT category_id, category_name FROM category ORDER BY category_id")
+            categories = cursor.fetchall()
+            
+            # Xử lý tìm kiếm nếu có
+            if request.method == 'POST' or (request.method == 'GET' and any([
+                request.args.get('keyword'),
+                request.args.get('category_id'),
+                request.args.get('min_price'),
+                request.args.get('max_price')
+            ])):
+                # Lấy các tham số từ form hoặc query string
+                keyword = request.form.get('keyword') or request.args.get('keyword') or None
+                category_id = request.form.get('category_id') or request.args.get('category_id') or None
+                min_price = request.form.get('min_price') or request.args.get('min_price') or None
+                max_price = request.form.get('max_price') or request.args.get('max_price') or None
+                
+                # Chuyển đổi kiểu dữ liệu
+                if category_id:
+                    try:
+                        category_id = int(category_id)
+                    except ValueError:
+                        category_id = None
+                
+                if min_price:
+                    try:
+                        min_price = float(min_price)
+                    except ValueError:
+                        min_price = None
+                
+                if max_price:
+                    try:
+                        max_price = float(max_price)
+                    except ValueError:
+                        max_price = None
+                
+                # Gọi stored procedure sp_SearchProducts
+                try:
+                    cursor.callproc('sp_SearchProducts', (
+                        keyword if keyword else None,
+                        category_id if category_id else None,
+                        min_price if min_price else None,
+                        max_price if max_price else None
+                    ))
+                    
+                    # Lấy kết quả từ stored procedure
+                    search_results = []
+                    for result in cursor.stored_results():
+                        search_results.extend(result.fetchall())
+                    
+                    # Lấy danh sách product_id từ kết quả tìm kiếm
+                    product_ids = [r['product_id'] for r in search_results] if search_results else []
+                    
+                    # Lấy thông tin chi tiết của TẤT CẢ sản phẩm (không filter theo seller)
+                    if product_ids:
+                        placeholders = ','.join(['%s'] * len(product_ids))
+                        query = f"""
+                            SELECT 
+                                p.product_id, p.product_name, p.image_link, p.price,
+                                p.product_description, c.category_name,
+                                COALESCE(SUM(c2.quantity_in_stock), 0) as total_stock,
+                                GROUP_CONCAT(DISTINCT s.store_name SEPARATOR ', ') as store_names
+                            FROM products p
+                            JOIN category c ON p.category_id = c.category_id
+                            LEFT JOIN contain c2 ON p.product_id = c2.product_id
+                            LEFT JOIN inventory i ON c2.inventory_id = i.inventory_id
+                            LEFT JOIN store s ON i.store_id = s.store_id
+                            WHERE p.product_id IN ({placeholders})
+                              AND p.product_name NOT LIKE '%[DELETED]%'
+                            GROUP BY p.product_id, p.product_name, p.image_link, p.price, p.product_description, c.category_name
+                            ORDER BY p.price ASC
+                        """
+                        cursor.execute(query, tuple(product_ids))
+                        products = cursor.fetchall()
+                    else:
+                        products = []
+                        
+                except mysql.connector.Error as err:
+                    flash(f"Lỗi tìm kiếm: {err.msg}", "error")
+                    products = []
+            else:
+                # Hiển thị TẤT CẢ sản phẩm (không filter theo seller)
+                query = """
+                    SELECT 
+                        p.product_id, p.product_name, p.image_link, p.price,
+                        p.product_description, c.category_name,
+                        COALESCE(SUM(c2.quantity_in_stock), 0) as total_stock,
+                        GROUP_CONCAT(DISTINCT s.store_name SEPARATOR ', ') as store_names
+                    FROM products p
+                    JOIN category c ON p.category_id = c.category_id
+                    LEFT JOIN contain c2 ON p.product_id = c2.product_id
+                    LEFT JOIN inventory i ON c2.inventory_id = i.inventory_id
+                    LEFT JOIN store s ON i.store_id = s.store_id
+                    WHERE p.product_name NOT LIKE '%[DELETED]%'
+                    GROUP BY p.product_id, p.product_name, p.image_link, p.price, p.product_description, c.category_name
+                    ORDER BY p.price ASC
+                """
+                cursor.execute(query)
+                products = cursor.fetchall()
+                
+        except Exception as e:
+            flash(f"Lỗi lấy danh sách: {e}", "error")
+        finally:
+            cursor.close()
+            conn.close()
+
+    return render_template('marketplace.html', products=products, categories=categories)
+
+# =================================================
+# INSERT PRODUCT
+# =================================================
+@app.route('/addProduct', methods=['GET', 'POST'])
+def add_product():
+    if 'user_id' not in session or session.get('role') != 'seller':
+        return redirect('/login')
+
+    if request.method == 'GET':
+        return render_template('addProduct.html')
+
+    conn = get_db_connection()
+    try:
+        p_id = int(request.form['product_id'])
+        p_name = request.form['product_name']
+        p_cat_id = int(request.form['category_id'])
+        p_desc = request.form.get('description', '') 
+        p_price = float(request.form['price'])
+        p_image = request.form.get('image_link', '')
+        p_inv_id = int(request.form['inventory_id'])
+        p_stock = int(request.form['initial_stock'])
+
+        if conn:
+            cursor = conn.cursor()
+            args = (p_id, p_cat_id, p_name, p_desc, p_price, p_image, p_inv_id, p_stock)
+            cursor.callproc('sp_InsertProduct', args)
+            conn.commit()
+            flash(f"Thêm thành công sản phẩm: {p_name}", "success")
+            return redirect('/productManagement')
+    except mysql.connector.Error as err:
+        flash(f"Lỗi SQL: {err.msg}", "error")
+    except Exception as e:
+        flash(f"Lỗi: {e}", "error")
+    finally:
+        if conn: conn.close()
+
+    return render_template('addProduct.html')
+
+# =================================================
+# UPDATE PRODUCT
+# =================================================
+@app.route('/updateProduct/<int:product_id>', methods=['GET', 'POST'])
+def update_product(product_id):
+    if 'user_id' not in session or session.get('role') != 'seller':
+        return redirect('/login')
+
+    conn = get_db_connection()
+    if not conn:
+        flash("Lỗi kết nối DB", "error")
+        return redirect('/productManagement')
+
+    cursor = conn.cursor(dictionary=True)
+
+    if request.method == 'GET':
+        try:
+            cursor.execute("SELECT * FROM products WHERE product_id = %s", (product_id,))
+            product = cursor.fetchone()
+            
+            if not product:
+                flash("Sản phẩm không tồn tại.", "error")
+                return redirect('/productManagement')
+            
+            return render_template('updateProduct.html', product=product)
+        finally:
+            cursor.close()
+            conn.close()
+
+    try:
+        p_name = request.form['product_name']
+        p_cat_id = int(request.form['category_id'])
+        p_desc = request.form.get('description', '')
+        p_price = float(request.form['price'])
+        p_image = request.form.get('image_link', '')
+
+        args = (product_id, p_cat_id, p_name, p_desc, p_price, p_image)
+        cursor.callproc('sp_UpdateProduct', args)
+        conn.commit()
+        
+        flash(f"Cập nhật thành công sản phẩm #{product_id}", "success")
+        return redirect('/productManagement')
+
+    except mysql.connector.Error as err:
+        flash(f"Lỗi SQL khi Update: {err.msg}", "error")
+    except Exception as e:
+        flash(f"Lỗi: {e}", "error")
+    finally:
+        if conn.is_connected():
+            cursor.close()
+            conn.close()
+
+    return redirect(url_for('updateProduct', product_id=product_id))
+
+# =================================================
+# DELETE PRODUCT 
+# =================================================
+@app.route('/deleteProduct/<int:product_id>', methods=['GET'])
+def delete_product(product_id):
+    if 'user_id' not in session or session.get('role') != 'seller':
+        return redirect('/login')
+
+    conn = get_db_connection()
+    if not conn:
+        flash("Lỗi hệ thống: Không thể kết nối Database.", "error")
+        return redirect('/productManagement')
+
+    try:
+        cursor = conn.cursor()
+        cursor.callproc('sp_DeleteProduct', (product_id,))
+        conn.commit()
+        
+        flash(f"Đã xóa thành công sản phẩm #{product_id}", "success")
+        
+    except mysql.connector.Error as err:
+        print(f"Lỗi MySQL: {err.msg}")
+        flash(f"Không thể xóa: {err.msg}", "error")
+        
+    except Exception as e:
+        print(f"Lỗi: {e}")
+        flash(f"Lỗi không xác định: {e}", "error")
+        
+    finally:
+        conn.close()
+    
+    return redirect('/productManagement')
 
 if __name__ == '__main__':
-    # Chạy ổn định trên macOS: bind 127.0.0.1, port 5050, tắt reloader và debug
     app.run(host='127.0.0.1', port=5050, debug=False, use_reloader=False, threaded=True)
