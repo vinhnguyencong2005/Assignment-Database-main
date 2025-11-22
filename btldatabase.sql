@@ -1,5 +1,5 @@
 DROP DATABASE IF EXISTS ShoppeDB;
-Create DATABASE ShoppeDB;
+CREATE DATABASE ShoppeDB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE ShoppeDB;
 
 ##BUYER
@@ -218,7 +218,7 @@ create table shipment(
 ##DELIVERY LOG
 create table delivery_log(
 	track_number INT,
-    log VARCHAR(30),
+    log VARCHAR(100),
     create_date DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
     CONSTRAINT fk_log_shipment
     FOREIGN KEY(track_number) REFERENCES shipment(tracking_number)

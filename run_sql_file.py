@@ -1,3 +1,7 @@
+"""
+Script để chạy file SQL và tạo database hoàn chỉnh.
+Hỗ trợ cả file SQL thường và file có DELIMITER (stored procedures/functions).
+"""
 import mysql.connector
 import sys
 import re
