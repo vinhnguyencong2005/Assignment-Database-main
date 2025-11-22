@@ -1,5 +1,5 @@
 DROP DATABASE IF EXISTS ShoppeDB;
-Create DATABASE ShoppeDB;
+CREATE DATABASE ShoppeDB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE ShoppeDB;
 
 ##BUYER

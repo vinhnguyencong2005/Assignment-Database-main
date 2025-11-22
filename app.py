@@ -22,7 +22,9 @@ db_config = {
     'host': 'localhost',
     'user': 'root',
     'password': 'giabao123',  # <-- Cập nhật mật khẩu MySQL của bạn tại đây
-    'database': 'ShoppeDB'  # Đã sửa từ ShopeeDB thành ShoppeDB để khớp với SQL file
+    'database': 'ShoppeDB',  # Đã sửa từ ShopeeDB thành ShoppeDB để khớp với SQL file
+    'charset': 'utf8mb4',  # Thêm charset UTF-8 để hỗ trợ tiếng Việt
+    'use_unicode': True
 }
 
 # Hàm giúp kết nối CSDL, có xử lý lỗi
