@@ -13,8 +13,10 @@ USE_DB = True
 db_config = {
     'host': 'localhost',
     'user': 'root',
-    'password': '22102005bobo', 
-    'database': 'ShoppeDB' 
+    'password': 'giabao123', 
+    'database': 'ShoppeDB',
+    'charset': 'utf8mb4',
+    'use_unicode': True
 }
 
 def get_db_connection():
@@ -148,7 +150,7 @@ def dashboard():
 # =================================================
 # PRODUCT MANAGEMENT 
 # =================================================
-@app.route('/productManagement')
+@app.route('/productManagement', methods=['GET', 'POST'])
 def product_management():
     if 'user_id' not in session or session.get('role') != 'seller':
         return redirect('/login')
@@ -156,32 +158,237 @@ def product_management():
     seller_id = session['user_id']
     conn = get_db_connection()
     products = []
+    categories = []
     
     if conn:
         cursor = conn.cursor(dictionary=True)
         try:
-            query = """
-                SELECT 
-                    p.product_id, p.product_name, p.image_link, p.price,
-                    c.quantity_in_stock, i.update_at, s.store_name
-                FROM sellers sel
-                JOIN store s ON sel.user_id = s.user_id
-                JOIN inventory i ON s.store_id = i.store_id
-                JOIN contain c ON i.inventory_id = c.inventory_id
-                JOIN products p ON c.product_id = p.product_id
-                WHERE sel.user_id = %s
-                  AND p.product_name NOT LIKE '%[DELETED]%'
-                ORDER BY p.product_id DESC
-            """
-            cursor.execute(query, (seller_id,))
-            products = cursor.fetchall()
+            # Lấy danh sách categories để hiển thị dropdown
+            cursor.execute("SELECT category_id, category_name FROM category ORDER BY category_id")
+            categories = cursor.fetchall()
+            
+            # Xử lý tìm kiếm nếu có
+            if request.method == 'POST' or (request.method == 'GET' and any([
+                request.args.get('keyword'),
+                request.args.get('category_id'),
+                request.args.get('min_price'),
+                request.args.get('max_price')
+            ])):
+                # Lấy các tham số từ form hoặc query string
+                keyword = request.form.get('keyword') or request.args.get('keyword') or None
+                category_id = request.form.get('category_id') or request.args.get('category_id') or None
+                min_price = request.form.get('min_price') or request.args.get('min_price') or None
+                max_price = request.form.get('max_price') or request.args.get('max_price') or None
+                
+                # Chuyển đổi kiểu dữ liệu
+                if category_id:
+                    try:
+                        category_id = int(category_id)
+                    except ValueError:
+                        category_id = None
+                
+                if min_price:
+                    try:
+                        min_price = float(min_price)
+                    except ValueError:
+                        min_price = None
+                
+                if max_price:
+                    try:
+                        max_price = float(max_price)
+                    except ValueError:
+                        max_price = None
+                
+                # Gọi stored procedure sp_SearchProducts
+                try:
+                    cursor.callproc('sp_SearchProducts', (
+                        keyword if keyword else None,
+                        category_id if category_id else None,
+                        min_price if min_price else None,
+                        max_price if max_price else None
+                    ))
+                    
+                    # Lấy kết quả từ stored procedure
+                    search_results = []
+                    for result in cursor.stored_results():
+                        search_results.extend(result.fetchall())
+                    
+                    # Lấy danh sách product_id từ kết quả tìm kiếm
+                    product_ids = [r['product_id'] for r in search_results] if search_results else []
+                    
+                    # Lấy thông tin chi tiết của các sản phẩm thuộc seller
+                    if product_ids:
+                        placeholders = ','.join(['%s'] * len(product_ids))
+                        query = f"""
+                            SELECT 
+                                p.product_id, p.product_name, p.image_link, p.price,
+                                c.quantity_in_stock, i.update_at, s.store_name
+                            FROM sellers sel
+                            JOIN store s ON sel.user_id = s.user_id
+                            JOIN inventory i ON s.store_id = i.store_id
+                            JOIN contain c ON i.inventory_id = c.inventory_id
+                            JOIN products p ON c.product_id = p.product_id
+                            WHERE sel.user_id = %s
+                              AND p.product_id IN ({placeholders})
+                              AND p.product_name NOT LIKE '%[DELETED]%'
+                            ORDER BY p.product_id DESC
+                        """
+                        cursor.execute(query, (seller_id, *product_ids))
+                        products = cursor.fetchall()
+                    else:
+                        products = []
+                        
+                except mysql.connector.Error as err:
+                    flash(f"Lỗi tìm kiếm: {err.msg}", "error")
+                    products = []
+            else:
+                # Hiển thị tất cả sản phẩm của seller (không tìm kiếm)
+                query = """
+                    SELECT 
+                        p.product_id, p.product_name, p.image_link, p.price,
+                        c.quantity_in_stock, i.update_at, s.store_name
+                    FROM sellers sel
+                    JOIN store s ON sel.user_id = s.user_id
+                    JOIN inventory i ON s.store_id = i.store_id
+                    JOIN contain c ON i.inventory_id = c.inventory_id
+                    JOIN products p ON c.product_id = p.product_id
+                    WHERE sel.user_id = %s
+                      AND p.product_name NOT LIKE '%[DELETED]%'
+                    ORDER BY p.product_id DESC
+                """
+                cursor.execute(query, (seller_id,))
+                products = cursor.fetchall()
+                
         except Exception as e:
             flash(f"Lỗi lấy danh sách: {e}", "error")
         finally:
             cursor.close()
             conn.close()
 
-    return render_template('productManagement.html', products=products)
+    return render_template('productManagement.html', products=products, categories=categories)
+
+# =================================================
+# MARKETPLACE (Thị Trường - Hiển thị tất cả sản phẩm)
+# =================================================
+@app.route('/marketplace', methods=['GET', 'POST'])
+def marketplace():
+    if 'user_id' not in session or session.get('role') != 'seller':
+        return redirect('/login')
+    
+    conn = get_db_connection()
+    products = []
+    categories = []
+    
+    if conn:
+        cursor = conn.cursor(dictionary=True)
+        try:
+            # Lấy danh sách categories để hiển thị dropdown
+            cursor.execute("SELECT category_id, category_name FROM category ORDER BY category_id")
+            categories = cursor.fetchall()
+            
+            # Xử lý tìm kiếm nếu có
+            if request.method == 'POST' or (request.method == 'GET' and any([
+                request.args.get('keyword'),
+                request.args.get('category_id'),
+                request.args.get('min_price'),
+                request.args.get('max_price')
+            ])):
+                # Lấy các tham số từ form hoặc query string
+                keyword = request.form.get('keyword') or request.args.get('keyword') or None
+                category_id = request.form.get('category_id') or request.args.get('category_id') or None
+                min_price = request.form.get('min_price') or request.args.get('min_price') or None
+                max_price = request.form.get('max_price') or request.args.get('max_price') or None
+                
+                # Chuyển đổi kiểu dữ liệu
+                if category_id:
+                    try:
+                        category_id = int(category_id)
+                    except ValueError:
+                        category_id = None
+                
+                if min_price:
+                    try:
+                        min_price = float(min_price)
+                    except ValueError:
+                        min_price = None
+                
+                if max_price:
+                    try:
+                        max_price = float(max_price)
+                    except ValueError:
+                        max_price = None
+                
+                # Gọi stored procedure sp_SearchProducts
+                try:
+                    cursor.callproc('sp_SearchProducts', (
+                        keyword if keyword else None,
+                        category_id if category_id else None,
+                        min_price if min_price else None,
+                        max_price if max_price else None
+                    ))
+                    
+                    # Lấy kết quả từ stored procedure
+                    search_results = []
+                    for result in cursor.stored_results():
+                        search_results.extend(result.fetchall())
+                    
+                    # Lấy danh sách product_id từ kết quả tìm kiếm
+                    product_ids = [r['product_id'] for r in search_results] if search_results else []
+                    
+                    # Lấy thông tin chi tiết của TẤT CẢ sản phẩm (không filter theo seller)
+                    if product_ids:
+                        placeholders = ','.join(['%s'] * len(product_ids))
+                        query = f"""
+                            SELECT 
+                                p.product_id, p.product_name, p.image_link, p.price,
+                                p.product_description, c.category_name,
+                                COALESCE(SUM(c2.quantity_in_stock), 0) as total_stock,
+                                GROUP_CONCAT(DISTINCT s.store_name SEPARATOR ', ') as store_names
+                            FROM products p
+                            JOIN category c ON p.category_id = c.category_id
+                            LEFT JOIN contain c2 ON p.product_id = c2.product_id
+                            LEFT JOIN inventory i ON c2.inventory_id = i.inventory_id
+                            LEFT JOIN store s ON i.store_id = s.store_id
+                            WHERE p.product_id IN ({placeholders})
+                              AND p.product_name NOT LIKE '%[DELETED]%'
+                            GROUP BY p.product_id, p.product_name, p.image_link, p.price, p.product_description, c.category_name
+                            ORDER BY p.price ASC
+                        """
+                        cursor.execute(query, tuple(product_ids))
+                        products = cursor.fetchall()
+                    else:
+                        products = []
+                        
+                except mysql.connector.Error as err:
+                    flash(f"Lỗi tìm kiếm: {err.msg}", "error")
+                    products = []
+            else:
+                # Hiển thị TẤT CẢ sản phẩm (không filter theo seller)
+                query = """
+                    SELECT 
+                        p.product_id, p.product_name, p.image_link, p.price,
+                        p.product_description, c.category_name,
+                        COALESCE(SUM(c2.quantity_in_stock), 0) as total_stock,
+                        GROUP_CONCAT(DISTINCT s.store_name SEPARATOR ', ') as store_names
+                    FROM products p
+                    JOIN category c ON p.category_id = c.category_id
+                    LEFT JOIN contain c2 ON p.product_id = c2.product_id
+                    LEFT JOIN inventory i ON c2.inventory_id = i.inventory_id
+                    LEFT JOIN store s ON i.store_id = s.store_id
+                    WHERE p.product_name NOT LIKE '%[DELETED]%'
+                    GROUP BY p.product_id, p.product_name, p.image_link, p.price, p.product_description, c.category_name
+                    ORDER BY p.price ASC
+                """
+                cursor.execute(query)
+                products = cursor.fetchall()
+                
+        except Exception as e:
+            flash(f"Lỗi lấy danh sách: {e}", "error")
+        finally:
+            cursor.close()
+            conn.close()
+
+    return render_template('marketplace.html', products=products, categories=categories)
 
 # =================================================
 # INSERT PRODUCT

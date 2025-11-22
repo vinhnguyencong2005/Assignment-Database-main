@@ -3,134 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard - Crusaders Logistics</title>
-    <!-- Import phông chữ Roboto từ Google Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
-    
+    <title>Dashboard - ShoppeDB</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
-        /* --- PHẦN CSS TỪ BANNER GỐC --- */
-
-        body {
-            margin: 0;
-            padding: 0;
-            font-family: 'Roboto', sans-serif;
-            /* Nền hồng cho khu vực bên ngoài container 1440px (nếu có) */
-            background-color: #F9DFDF; 
-        }
-
-        .main-container {
-            position: relative;
-            width: 1440px;
-            height: 900px;
-            /* Căn giữa trang (tùy chọn) */
-            margin: 0 auto;
-            overflow: hidden; /* Giấu các phần tử tràn lề */
-            /* Nền hồng sẽ là nền của container chính,
-               nhưng sẽ bị che bởi .dashboard-content */
+        .dashboard-content {
+            padding: 20px;
             background-color: #F9DFDF;
         }
-
-        .header-top {
-            position: absolute;
-            width: 1440px;
-            height: 82px;
-            left: 0px;
-            top: 0px;
-            background: #FFFFFF;
-            z-index: 10; 
-        }
-
-        .header-nav {
-            position: absolute;
-            width: 1440px;
-            height: 67px;
-            left: 0px;
-            top: 83px;
-            background: #000000;
-            z-index: 10; 
-        }
-
-        .nav-item {
-            position: absolute;
-            display: block;
-            text-decoration: none;
-            cursor: pointer;
-        }
-
-        .nav-item-dashboard {
-            width: 165px;
-            height: 44px;
-            left: 85px;
-            top: 102px;
-            font-family: 'Roboto';
-            font-style: normal;
-            font-weight: 700;
-            font-size: 24px;
-            line-height: 28px;
-            color: #F70505; 
-            z-index: 11;
-        }
-
-        .nav-item-dashboard:visited,
-        .nav-item-dashboard:hover,
-        .nav-item-dashboard:active {
-            color: #F70505;
-        }
-        
-        .nav-item-quan-ly-kho {
-            width: 138px;
-            height: 41px;
-            left: 329px;
-            top: 103px;
-            font-family: 'Roboto';
-            font-style: normal;
-            font-weight: 400;
-            font-size: 24px;
-            line-height: 28px;
-            color: #FFFFFF; 
-            z-index: 11;
-        }
-
-        .nav-item-quan-ly-kho:visited,
-        .nav-item-quan-ly-kho:hover,
-        .nav-item-quan-ly-kho:active {
-            color: #FFFFFF;
-        }
-
-        .nav-active-underline {
-            position: absolute;
-            width: 200px;
-            height: 0px;
-            left: 54px;
-            top: 150px;
-            border: 6px solid #FF0A0A;
-            transform: rotate(-0.02deg);
-            z-index: 11;
-        }
-
-        /* --- VÙNG NỘI DUNG DASHBOARD MỚI --- */
-        .dashboard-content {
-            position: absolute;
-            top: 150px; /* Ngay dưới thanh nav đen (83px + 67px) */
-            left: 0;
-            width: 1440px;
-            /* Chiều cao = 900px (tổng) - 150px (header+nav) */
-            height: 750px; 
-            overflow-y: auto; /* Cho phép cuộn nếu nội dung dài */
-            
-            /* Style lấy từ body của file dashboard */
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            background-color: #F9DFDF; /* Nền hồng nhạt theo yêu cầu */
-            padding: 20px; /* Thêm padding như file dashboard */
-            box-sizing: border-box; /* Để padding không làm tăng kích thước */
-            z-index: 5; /* Nằm dưới header/nav */
-        }
-
-
-        /* --- PHẦN CSS TỪ FILE DASHBOARD --- */
-        /* Các style này giờ sẽ áp dụng cho các element bên trong .dashboard-content */
 
         .dashboard-content .container { display: flex; flex-wrap: wrap; gap: 40px; }
         .dashboard-content .panel { border: 1px solid #ccc; padding: 20px; border-radius: 8px; background-color: #fff; min-width: 400px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
@@ -150,31 +30,27 @@
         .dashboard-content .flash.error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
         .dashboard-content .flash.warning { background-color: #fff3cd; color: #856404; border: 1px solid #ffeeba; }
         .dashboard-content .flash.info { background-color: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
-
     </style>
 </head>
-<body>
+<body class="bg-gray-50 flex flex-col h-screen relative">
 
-    <!-- Container chính bọc toàn bộ trang -->
-    <div class="main-container">
-
-        <!-- Thanh header trắng trên cùng -->
-        <div class="header-top">
-            <!-- Nội dung bên trong đã bị xóa theo yêu cầu -->
+    <!-- Header -->
+    <header class="bg-black text-white h-12 flex items-center px-6 shrink-0">
+        <nav class="flex gap-6 h-full">
+            <a href="/dashboard" class="h-full flex items-center px-2 text-red-500 border-b-4 border-red-600 font-bold">Dashboard</a>
+            <a href="/productManagement" class="h-full flex items-center px-2 text-gray-300 hover:text-white">Quản lý Kho</a>
+            <a href="/marketplace" class="h-full flex items-center px-2 text-gray-300 hover:text-white">Thị Trường</a>
+        </nav>
+        <div class="ml-auto text-sm text-gray-400">
+            {% if session.get('user_id') %}
+                Seller #{{ session.get('user_id') }} | 
+            {% endif %}
+            <a href="/logout" class="text-white hover:underline">Đăng xuất</a>
         </div>
+    </header>
 
-        <!-- Thanh menu điều hướng màu đen -->
-        <div class="header-nav">
-            <!-- Trống, vì các mục menu được định vị tuyệt đối -->
-        </div>
-
-        <!-- Các mục menu của thanh màu đen -->
-        <a class="nav-item nav-item-dashboard" href="/dashboard">Dashboard</a>
-        <a class="nav-item nav-item-quan-ly-kho" href="#warehouse-section">Quản lý Kho</a>
-        <div class="nav-active-underline"></div>
-
-        
-        <!-- NỘI DUNG DASHBOARD ĐƯỢC CHÈN VÀO ĐÂY -->
+    <!-- Main Content -->
+    <main class="flex-1 overflow-y-auto">
         <div class="dashboard-content">
             
             {% with messages = get_flashed_messages(with_categories=true) %}
@@ -252,8 +128,7 @@
             </div>
 
         </div> <!-- Kết thúc .dashboard-content -->
-
-    </div> <!-- Kết thúc .main-container -->
+    </main>
 
 </body>
 </html>

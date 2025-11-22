@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Quản lý kho - ShoppeDB</title>
+    <title>Thị Trường - ShoppeDB</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
@@ -21,8 +21,8 @@
     <header class="bg-black text-white h-12 flex items-center px-6 shrink-0">
         <nav class="flex gap-6 h-full">
             <a href="/dashboard" class="h-full flex items-center px-2 text-gray-300 hover:text-white">Dashboard</a>
-            <a href="/productManagement" class="h-full flex items-center px-2 text-red-500 border-b-4 border-red-600 font-bold">Quản lý Kho</a>
-            <a href="/marketplace" class="h-full flex items-center px-2 text-gray-300 hover:text-white">Thị Trường</a>
+            <a href="/productManagement" class="h-full flex items-center px-2 text-gray-300 hover:text-white">Quản lý Kho</a>
+            <a href="/marketplace" class="h-full flex items-center px-2 text-red-500 border-b-4 border-red-600 font-bold">Thị Trường</a>
         </nav>
         <div class="ml-auto text-sm text-gray-400">
             Seller #{{ session.get('user_id') }} | <a href="/logout" class="text-white hover:underline">Đăng xuất</a>
@@ -69,7 +69,7 @@
 
     <!-- Search Bar -->
     <div class="bg-red-100 p-4 shrink-0">
-        <form action="/productManagement" method="POST" class="flex gap-4 items-end flex-wrap">
+        <form action="/marketplace" method="POST" class="flex gap-4 items-end flex-wrap">
             <!-- Từ khóa (Keyword) -->
             <div class="flex-1 min-w-[200px]">
                 <label class="block text-sm font-semibold text-gray-700 mb-1">Từ khóa</label>
@@ -120,7 +120,7 @@
             
             <!-- Nút reset (hiển thị tất cả) -->
             <div>
-                <a href="/productManagement" class="bg-gray-500 text-white px-6 py-2 rounded hover:bg-gray-600 shadow-md font-semibold inline-block">
+                <a href="/marketplace" class="bg-gray-500 text-white px-6 py-2 rounded hover:bg-gray-600 shadow-md font-semibold inline-block">
                     Xóa bộ lọc
                 </a>
             </div>
@@ -134,12 +134,11 @@
                 <tr class="bg-gray-300 text-gray-800 font-semibold text-sm uppercase text-center">
                     <th class="py-3 px-4 border-b border-gray-400 w-32 bg-gray-300">Ảnh</th>
                     <th class="py-3 px-4 border-b border-gray-400 bg-gray-300">Mã SP</th>
-                    <th class="py-3 px-4 border-b border-gray-400 w-1/4 bg-gray-300">Tên</th>
-                    <th class="py-3 px-4 border-b border-gray-400 bg-gray-300">Ngày nhập</th>
-                    <th class="py-3 px-4 border-b border-gray-400 bg-gray-300">Số lượng</th>
-                    <th class="py-3 px-4 border-b border-gray-400 bg-gray-300">Công ty</th>
-                    <th class="py-3 px-4 border-b border-gray-400 bg-gray-300">Giá tiền</th>
-                    <th class="py-3 px-4 border-b border-gray-400 w-24 bg-gray-300">Thao tác</th>
+                    <th class="py-3 px-4 border-b border-gray-400 w-1/5 bg-gray-300">Tên sản phẩm</th>
+                    <th class="py-3 px-4 border-b border-gray-400 bg-gray-300">Danh mục</th>
+                    <th class="py-3 px-4 border-b border-gray-400 bg-gray-300">Tồn kho</th>
+                    <th class="py-3 px-4 border-b border-gray-400 w-1/4 bg-gray-300">Cửa hàng</th>
+                    <th class="py-3 px-4 border-b border-gray-400 bg-gray-300">Giá (VND)</th>
                 </tr>
             </thead>
             <tbody class="bg-white text-center text-gray-700">
@@ -153,48 +152,31 @@
                                 <span class="text-xs text-gray-400">No Image</span>
                             {% endif %}
                         </td>
-                        <td class="py-2 px-4">{{ p.product_id }}</td>
+                        <td class="py-2 px-4 font-medium">{{ p.product_id }}</td>
                         <td class="py-2 px-4 text-left font-medium">{{ p.product_name }}</td>
-                        <td class="py-2 px-4">{{ p.update_at.strftime('%d/%m/%Y') if p.update_at else '--' }}</td>
-                        <td class="py-2 px-4">{{ p.quantity_in_stock }}</td>
-                        <td class="py-2 px-4">{{ p.store_name }}</td>
-                        <td class="py-2 px-4 font-medium">{{ "{:,.0f}".format(p.price) }}</td>
-                        <td class="py-2 px-4">
-                            <div class="flex justify-center gap-3 text-lg">
-                                <!-- Nút Update -->
-                                <a href="/updateProduct/{{ p.product_id }}" class="text-gray-700 hover:text-blue-600 transition" title="Sửa">
-                                    <i class="fas fa-pen-nib"></i>
-                                </a>
-                                <!-- Nút Delete -->
-                                <a href="/deleteProduct/{{ p.product_id }}" 
-                                   onclick="return confirm('Bạn có chắc chắn muốn xóa sản phẩm {{ p.product_name }}?')" 
-                                   class="text-gray-700 hover:text-red-600 transition" title="Xóa">
-                                    <i class="fas fa-trash-alt"></i>
-                                </a>
-                            </div>
-                        </td>
+                        <td class="py-2 px-4">{{ p.category_name }}</td>
+                        <td class="py-2 px-4 font-semibold">{{ p.total_stock or 0 }}</td>
+                        <td class="py-2 px-4 text-left text-sm">{{ p.store_names or 'Chưa có' }}</td>
+                        <td class="py-2 px-4 font-bold text-red-600">{{ "{:,.0f}".format(p.price) }}</td>
                     </tr>
                     {% endfor %}
                 {% else %}
                     <tr>
-                        <td colspan="8" class="py-8 text-gray-500">Chưa có sản phẩm nào.</td>
+                        <td colspan="7" class="py-8 text-gray-500">Không tìm thấy sản phẩm nào.</td>
                     </tr>
                 {% endif %}
             </tbody>
         </table>
     </main>
 
-    <!-- Footer Actions -->
-    <div class="bg-red-100 p-4 flex justify-between items-center border-t border-gray-300 shrink-0">
-        <div class="flex items-center gap-2 text-gray-800 font-medium ml-auto mr-auto pl-32">
+    <!-- Footer -->
+    <div class="bg-red-100 p-4 flex justify-center items-center border-t border-gray-300 shrink-0">
+        <div class="flex items-center gap-2 text-gray-800 font-medium">
             <!-- Pagination -->
-            <i class="fas fa-caret-left text-2xl cursor-pointer"></i>
+            <i class="fas fa-caret-left text-2xl cursor-pointer text-gray-400"></i>
             <span class="px-2 border-b-2 border-black font-bold">1</span>
-            <i class="fas fa-caret-right text-2xl cursor-pointer"></i>
+            <i class="fas fa-caret-right text-2xl cursor-pointer text-gray-400"></i>
         </div>
-        <a href="/addProduct" class="bg-red-600 text-white px-6 py-3 font-semibold hover:bg-red-700 shadow-md text-sm uppercase">
-            Thêm sản phẩm
-        </a>
     </div>
 
     <!-- TỰ ĐỘNG TẮT THÔNG BÁO -->
@@ -203,13 +185,9 @@
             const toasts = document.querySelectorAll('.toast-message');
             
             if (toasts.length > 0) {
-                // Đợi 5 giây (5000ms) rồi bắt đầu ẩn
                 setTimeout(() => {
                     toasts.forEach(toast => {
-                        // Thêm class fade-out để chạy animation CSS
                         toast.classList.add('fade-out');
-                        
-                        // Sau khi animation chạy xong (0.5s) thì xóa hẳn khỏi DOM
                         setTimeout(() => {
                             toast.remove();
                         }, 500);
@@ -221,3 +199,4 @@
 
 </body>
 </html>
+
