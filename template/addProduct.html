@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Thêm sản phẩm - ShoppeDB</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .info-table {
+            width: 100%;
+            border-collapse: collapse;
+            border: 1px solid #6b7280;
+        }
+        .info-table th, .info-table td {
+            border: 1px solid #6b7280;
+            padding: 12px;
+            vertical-align: middle;
+        }
+        .info-table td:first-child {
+            background-color: #f3f4f6;
+            font-weight: 500;
+            width: 30%;
+        }
+        .table-input {
+            width: 100%;
+            padding: 8px 12px;
+            outline: none;
+            border: 1px solid transparent;
+        }
+        .table-input:focus {
+            border-color: #3b82f6;
+            background-color: #eff6ff;
+        }
+        /* Style cho thông báo Flash Message */
+        .flash-msg {
+            padding: 1rem;
+            margin-bottom: 1rem;
+            border-radius: 0.5rem;
+            font-weight: 500;
+        }
+        .flash-success { background-color: #d1fae5; color: #065f46; border: 1px solid #34d399; }
+        .flash-error { background-color: #fee2e2; color: #991b1b; border: 1px solid #f87171; }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen py-10">
+
+    <div class="max-w-3xl mx-auto bg-white p-8 shadow-lg rounded-lg">
+        <h1 class="text-3xl font-bold text-center mb-8 text-gray-800">Thêm Sản Phẩm Mới</h1>
+
+        <!-- Khu vực hiển thị thông báo từ Python -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            <div class="mb-6">
+              {% for category, message in messages %}
+                <div class="flash-msg flash-{{ category }}">
+                    {{ message }}
+                </div>
+              {% endfor %}
+            </div>
+          {% endif %}
+        {% endwith %}
+
+        <!-- FORM GỬI DỮ LIỆU (METHOD=POST) -->
+        <form action="/addProduct" method="POST">
+            <table class="info-table mb-8">
+                <tbody>
+                    <tr>
+                        <td>Mã sản phẩm (ID) <span class="text-red-500">*</span></td>
+                        <td><input type="number" name="product_id" class="table-input" placeholder="VD: 9999" required></td>
+                    </tr>
+                    <tr>
+                        <td>Tên sản phẩm <span class="text-red-500">*</span></td>
+                        <td><input type="text" name="product_name" class="table-input" placeholder="Nhập tên sản phẩm" required></td>
+                    </tr>
+                    <tr>
+                        <td>Danh mục (Category ID) <span class="text-red-500">*</span></td>
+                        <td><input type="number" name="category_id" class="table-input" placeholder="VD: 1 (Điện tử)" required></td>
+                    </tr>
+                    <tr>
+                        <td>Mô tả</td>
+                        <td><textarea name="description" class="table-input h-24 resize-none" placeholder="Mô tả chi tiết..."></textarea></td>
+                    </tr>
+                    <tr>
+                        <td>Giá tiền (VND) <span class="text-red-500">*</span></td>
+                        <td><input type="number" name="price" class="table-input" placeholder="VD: 150000" min="0" required></td>
+                    </tr>
+                    <tr>
+                        <td>Link ảnh</td>
+                        <td><input type="text" name="image_link" class="table-input" placeholder="http://..."></td>
+                    </tr>
+                    <tr>
+                        <td>Kho hàng (Inventory ID) <span class="text-red-500">*</span></td>
+                        <td><input type="number" name="inventory_id" class="table-input" placeholder="VD: 100" required></td>
+                    </tr>
+                    <tr>
+                        <td>Số lượng ban đầu <span class="text-red-500">*</span></td>
+                        <td><input type="number" name="initial_stock" class="table-input" placeholder="VD: 50" min="0" required></td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="flex justify-end gap-4">
+                <!-- NÚT QUAY LẠI -->
+                <a href="/productManagement" class="px-6 py-2 border border-gray-300 rounded hover:bg-gray-100 transition text-gray-700">Quay lại</a>
+                <button type="submit" class="px-8 py-2 bg-red-600 text-white font-bold rounded hover:bg-red-700 transition shadow-md">
+                    Thêm sản phẩm
+                </button>
+            </div>
+        </form>
+    </div>
+
+</body>
+</html>

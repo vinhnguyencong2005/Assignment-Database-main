@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cập nhật sản phẩm - ShoppeDB</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .info-table {
+            width: 100%;
+            border-collapse: collapse;
+            border: 1px solid #6b7280;
+        }
+        .info-table th, .info-table td {
+            border: 1px solid #6b7280;
+            padding: 12px;
+            vertical-align: middle;
+        }
+        .info-table td:first-child {
+            background-color: #f3f4f6;
+            font-weight: 500;
+            width: 30%;
+        }
+        .table-input {
+            width: 100%;
+            padding: 8px 12px;
+            outline: none;
+            border: 1px solid transparent;
+            background: transparent;
+        }
+        .table-input:focus {
+            border-color: #3b82f6;
+            background-color: #eff6ff;
+        }
+        .readonly-input {
+            background-color: #e5e7eb;
+            color: #6b7280;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen py-10">
+
+    <div class="max-w-3xl mx-auto bg-white p-8 shadow-lg rounded-lg">
+        <h1 class="text-3xl font-bold text-center mb-8 text-gray-800">Cập nhật sản phẩm</h1>
+
+        <!-- Hiển thị thông báo -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            <div class="mb-6">
+              {% for category, message in messages %}
+                <div class="p-4 mb-4 rounded 
+                    {{ 'bg-green-100 text-green-700' if category == 'success' else 'bg-red-100 text-red-700' }}">
+                    {{ message }}
+                </div>
+              {% endfor %}
+            </div>
+          {% endif %}
+        {% endwith %}
+
+        {% if product %}
+        <form action="/updateProduct/{{ product.product_id }}" method="POST">
+            <table class="info-table mb-8">
+                <tbody>
+                    <tr>
+                        <td>Mã sản phẩm (Không thể sửa)</td>
+                        <td>
+                            <input type="number" value="{{ product.product_id }}" class="table-input readonly-input" readonly>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>Tên sản phẩm <span class="text-red-500">*</span></td>
+                        <td>
+                            <input type="text" name="product_name" value="{{ product.product_name }}" class="table-input" required>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>Danh mục (Category ID) <span class="text-red-500">*</span></td>
+                        <td>
+                            <input type="number" name="category_id" value="{{ product.category_id }}" class="table-input" required>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>Mô tả</td>
+                        <td>
+                            <textarea name="description" class="table-input h-24 resize-none">{{ product.product_description }}</textarea>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>Giá tiền (VND) <span class="text-red-500">*</span></td>
+                        <td>
+                            <input type="number" name="price" value="{{ product.price }}" class="table-input" min="0" required>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>Link ảnh</td>
+                        <td>
+                            <input type="text" name="image_link" value="{{ product.image_link }}" class="table-input">
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="flex justify-end gap-4">
+                <a href="/productManagement" class="px-6 py-2 border border-gray-300 rounded hover:bg-gray-100 transition text-gray-700">Hủy bỏ</a>
+                <button type="submit" class="px-8 py-2 bg-blue-600 text-white font-bold rounded hover:bg-blue-700 transition shadow-md">
+                    Lưu thay đổi
+                </button>
+            </div>
+        </form>
+        {% else %}
+            <div class="text-center text-red-500">Không tìm thấy thông tin sản phẩm.</div>
+            <div class="text-center mt-4">
+                <a href="/productManagement" class="text-blue-600 hover:underline">Quay lại danh sách</a>
+            </div>
+        {% endif %}
+    </div>
+
+</body>
+</html>
