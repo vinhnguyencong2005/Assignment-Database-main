@@ -5,44 +5,88 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Đăng nhập - ShoppeDB</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        .tab-active {
+            border-bottom: 2px solid #dc2626; /* Red-600 */
+            color: #dc2626;
+            font-weight: 600;
+        }
+        .tab-inactive {
+            border-bottom: 2px solid transparent;
+            color: #6b7280; /* Gray-500 */
+        }
+        .tab-inactive:hover {
+            color: #dc2626;
+        }
+    </style>
 </head>
 <body class="bg-gray-100 h-screen flex items-center justify-center">
 
-    <div class="bg-white p-8 rounded-lg shadow-lg w-96">
-        <h2 class="text-2xl font-bold text-center mb-6 text-red-600">ShoppeDB Login</h2>
+    <div class="bg-white p-8 rounded-lg shadow-xl w-96 border-t-4 border-red-600">
+        <!-- Header -->
+        <div class="text-center mb-8">
+            <div class="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-3 text-3xl">
+                <i class="fas fa-shopping-bag"></i>
+            </div>
+            <h2 class="text-2xl font-bold text-gray-800">ShoppeDB Đăng Nhập</h2>
+        </div>
 
-        <!-- Tabs chuyển đổi Seller/Buyer -->
-        <div class="flex mb-6 border-b">
-            <button id="tabSeller" class="w-1/2 py-2 font-semibold text-red-600 border-b-2 border-red-600 focus:outline-none" onclick="switchTab('seller')">
+        <!-- Tabs Selection -->
+        <div class="flex mb-6 border-b border-gray-200">
+            <button id="btnSeller" onclick="selectRole('seller')" class="w-1/2 py-3 text-center transition-all tab-active">
                 Kênh Người Bán
             </button>
-            <button id="tabBuyer" class="w-1/2 py-2 font-semibold text-gray-500 hover:text-red-500 focus:outline-none" onclick="switchTab('buyer')">
+            <button id="btnBuyer" onclick="selectRole('buyer')" class="w-1/2 py-3 text-center transition-all tab-inactive">
                 Kênh Người Mua
             </button>
         </div>
 
-        <!-- Form Đăng nhập -->
+        <!-- Login Form -->
         <form action="/login" method="POST">
-            <!-- Input ẩn để backend biết đang login vai trò gì -->
+            <!-- Input ẩn để gửi role về Python -->
             <input type="hidden" name="role" id="roleInput" value="seller">
 
             <div class="mb-4">
-                <label class="block text-gray-700 text-sm font-bold mb-2">User ID</label>
-                <input type="number" name="user_id" class="w-full px-3 py-2 border rounded focus:outline-none focus:border-red-500" placeholder="Nhập ID (VD: 4, 5...)" required>
-                <p class="text-xs text-gray-500 mt-1">*Seller ID mẫu: 4, 5, 6, 7, 8</p>
+                <label class="block text-gray-700 text-sm font-bold mb-2">User ID (Database ID)</label>
+                <div class="relative">
+                    <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
+                        <i class="fas fa-user"></i>
+                    </span>
+                    <input type="number" name="user_id" class="w-full pl-10 pr-3 py-2 border border-gray-300 rounded focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500" placeholder="Nhập ID của bạn..." required>
+                </div>
             </div>
 
-            <button type="submit" class="w-full bg-red-600 text-white font-bold py-2 px-4 rounded hover:bg-red-700 transition duration-200">
+            <!-- Hint Box (Gợi ý tài khoản có sẵn để test) -->
+            <!-- <div class="mb-6 bg-gray-50 p-3 rounded border border-gray-200 text-xs text-gray-600">
+                <p class="font-bold mb-1"><i class="fas fa-info-circle text-blue-500"></i> Tài khoản mẫu (Từ Database):</p>
+                <div id="hintSeller">
+                    <span class="bg-red-100 text-red-800 px-1 rounded">ID: 4</span>
+                    <span class="bg-red-100 text-red-800 px-1 rounded">ID: 5</span>
+                    <span class="bg-red-100 text-red-800 px-1 rounded">ID: 6</span>
+                    <span class="bg-red-100 text-red-800 px-1 rounded">ID: 7</span>
+                </div>
+                <div id="hintBuyer" class="hidden">
+                    <span class="bg-blue-100 text-blue-800 px-1 rounded">ID: 1</span>
+                    <span class="bg-blue-100 text-blue-800 px-1 rounded">ID: 2</span>
+                    <span class="bg-blue-100 text-blue-800 px-1 rounded">ID: 3</span>
+                    <span class="bg-blue-100 text-blue-800 px-1 rounded">ID: 8</span>
+                </div>
+            </div> -->
+
+            <button type="submit" class="w-full bg-red-600 text-white font-bold py-2 px-4 rounded hover:bg-red-700 transition duration-200 shadow-md">
                 Đăng Nhập
             </button>
         </form>
         
-        <!-- Thông báo lỗi (Flash Message) -->
+        <!-- Flash Messages (Thông báo lỗi/thành công) -->
         {% with messages = get_flashed_messages(with_categories=true) %}
           {% if messages %}
-            <div class="mt-4">
+            <div class="mt-6 space-y-2">
               {% for category, message in messages %}
-                <div class="text-sm text-center {{ 'text-red-600' if category == 'error' else 'text-green-600' }}">
+                <div class="text-sm p-3 rounded border text-center
+                    {{ 'bg-green-100 text-green-700 border-green-300' if category == 'success' else 'bg-red-100 text-red-700 border-red-300' }}">
+                    <i class="fas {{ 'fa-check-circle' if category == 'success' else 'fa-exclamation-circle' }} mr-1"></i>
                     {{ message }}
                 </div>
               {% endfor %}
@@ -51,20 +95,34 @@
         {% endwith %}
     </div>
 
+    <!-- JavaScript Xử lý chuyển Tab -->
     <script>
-        function switchTab(role) {
+        function selectRole(role) {
             const roleInput = document.getElementById('roleInput');
-            const tabSeller = document.getElementById('tabSeller');
-            const tabBuyer = document.getElementById('tabBuyer');
+            const btnSeller = document.getElementById('btnSeller');
+            const btnBuyer = document.getElementById('btnBuyer');
+            const hintSeller = document.getElementById('hintSeller');
+            const hintBuyer = document.getElementById('hintBuyer');
+
+            // Cập nhật giá trị input ẩn
+            roleInput.value = role;
 
             if (role === 'seller') {
-                roleInput.value = 'seller';
-                tabSeller.className = "w-1/2 py-2 font-semibold text-red-600 border-b-2 border-red-600 focus:outline-none";
-                tabBuyer.className = "w-1/2 py-2 font-semibold text-gray-500 hover:text-red-500 focus:outline-none";
+                // Active Seller
+                btnSeller.className = "w-1/2 py-3 text-center transition-all tab-active cursor-default";
+                btnBuyer.className = "w-1/2 py-3 text-center transition-all tab-inactive cursor-pointer";
+                
+                // Show hints
+                hintSeller.classList.remove('hidden');
+                hintBuyer.classList.add('hidden');
             } else {
-                roleInput.value = 'buyer';
-                alert("Chức năng Buyer chưa phát triển trong demo này!");
-                switchTab('seller');
+                // Active Buyer
+                btnBuyer.className = "w-1/2 py-3 text-center transition-all tab-active cursor-default";
+                btnSeller.className = "w-1/2 py-3 text-center transition-all tab-inactive cursor-pointer";
+                
+                // Show hints
+                hintBuyer.classList.remove('hidden');
+                hintSeller.classList.add('hidden');
             }
         }
     </script>

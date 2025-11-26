@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Giỏ hàng - ShopeeDB</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body class="bg-gray-100 min-h-screen">
+
+    <!-- HEADER -->
+    <div class="bg-white h-16 flex items-center justify-between px-6 border-b shadow-sm">
+        <div class="flex items-center gap-3">
+            <a href="/buyer/home" class="flex items-center gap-2 text-black hover:text-red-600 font-bold">
+                <i class="fas fa-arrow-left"></i> Tiếp tục mua sắm
+            </a>
+            <div class="h-6 w-px bg-gray-300 mx-2"></div>
+            <h1 class="text-xl font-bold text-red-600">Giỏ hàng của bạn</h1>
+        </div>
+        <div class="font-bold">Buyer #{{ session.get('user_id') }}</div>
+    </div>
+
+    <!-- MAIN -->
+    <div class="max-w-5xl mx-auto mt-8 p-6 bg-white shadow rounded-lg">
+        
+        <!-- Flash Messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                <div class="mb-4 p-3 rounded border {{ 'bg-green-100 border-green-400 text-green-700' if category == 'success' else 'bg-red-100 border-red-400 text-red-700' }}">
+                    {{ message }}
+                </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        {% if cart_items %}
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="border-b-2 border-gray-200 text-gray-600 text-sm uppercase">
+                        <th class="py-3 w-20">Ảnh</th>
+                        <th class="py-3">Sản phẩm</th>
+                        <th class="py-3 text-center">Đơn giá</th>
+                        <th class="py-3 text-center">Số lượng</th>
+                        <th class="py-3 text-right">Thành tiền</th>
+                        <th class="py-3 text-center w-16">Xóa</th>
+                    </tr>
+                </thead>
+                <tbody class="text-gray-700">
+                    {% for item in cart_items %}
+                    <tr class="border-b border-gray-100 hover:bg-gray-50">
+                        <td class="py-4">
+                            <img src="{{ item.image_link }}" class="h-16 w-16 object-contain border p-1" onerror="this.src='https://via.placeholder.com/64'">
+                        </td>
+                        <td class="py-4 font-medium">{{ item.product_name }}</td>
+                        <td class="py-4 text-center">{{ "{:,.0f}".format(item.unit_price) }}</td>
+                        <td class="py-4 text-center font-bold">{{ item.quantity }}</td>
+                        <td class="py-4 text-right font-bold text-red-600">{{ "{:,.0f}".format(item.subtotal) }}</td>
+                        <td class="py-4 text-center">
+                            <a href="/cart/delete/{{ item.cartItem_id }}" class="text-gray-400 hover:text-red-600" title="Xóa">
+                                <i class="fas fa-trash-alt"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot>
+                    <tr class="bg-gray-50">
+                        <td colspan="4" class="py-4 text-right font-bold text-lg text-gray-600 uppercase">Tổng thanh toán:</td>
+                        <td class="py-4 text-right font-bold text-2xl text-red-600">{{ "{:,.0f}".format(total_amount) }} VND</td>
+                        <td></td>
+                    </tr>
+                </tfoot>
+            </table>
+
+            <div class="flex justify-end mt-6">
+                <form action="/checkout" method="POST">
+                    <button type="submit" class="bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-8 rounded shadow text-lg uppercase transition transform active:scale-95">
+                        Đặt hàng ngay
+                    </button>
+                </form>
+            </div>
+        {% else %}
+            <div class="text-center py-16 text-gray-400">
+                <i class="fas fa-shopping-cart text-6xl mb-4 opacity-30"></i>
+                <p class="text-xl font-medium">Giỏ hàng của bạn đang trống</p>
+                <a href="/buyer/home" class="mt-4 inline-block text-red-600 hover:underline">Quay lại mua sắm</a>
+            </div>
+        {% endif %}
+    </div>
+
+</body>
+</html>
