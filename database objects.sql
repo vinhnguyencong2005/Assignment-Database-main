@@ -154,8 +154,8 @@ BEGIN
     WHERE
         -- 1. Lọc theo Từ khóa (Keyword)
         (p_Keyword IS NULL OR p_Keyword = '' OR 
-         p.product_name LIKE CONCAT('%', p_Keyword, '%') OR 
-         p.product_description LIKE CONCAT('%', p_Keyword, '%'))
+         p.product_name COLLATE utf8mb4_bin LIKE CONCAT('%', p_Keyword COLLATE utf8mb4_bin, '%') OR 
+         p.product_description COLLATE utf8mb4_bin LIKE CONCAT('%', p_Keyword COLLATE utf8mb4_bin, '%'))
         
     AND
         -- 2. Lọc theo Danh mục (Category)

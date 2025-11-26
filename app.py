@@ -14,7 +14,7 @@ USE_DB = True
 db_config = {
     'host': 'localhost',
     'user': 'root',
-    'password': '22102005bobo', 
+    'password': 'giabao123', 
     'database': 'ShoppeDB',
     'charset': 'utf8mb4',
     'use_unicode': True
@@ -126,8 +126,14 @@ def buyer_home():
             # Lấy danh sách sản phẩm
             args = (keyword, category_id, min_price, max_price)
             cursor.callproc('sp_SearchProducts', args)
+            fetched = []
             for result in cursor.stored_results():
-                products = result.fetchall()
+                fetched.extend(result.fetchall())
+            # Ẩn các sản phẩm đã đánh dấu [DELETED] khỏi trang Buyer
+            products = [
+                row for row in fetched
+                if '[DELETED]' not in (row.get('product_name') or '')
+            ]
             
             # Đếm số lượng trong giỏ hàng (Chưa nằm trong HOLD)
             # Logic: Cart = CartItem NOT IN (SELECT cartItem_id FROM hold)
@@ -473,6 +479,122 @@ def product_management():
             cursor.close()
             conn.close()
     return render_template('productManagement.html', products=products)
+
+@app.route('/marketplace', methods=['GET', 'POST'])
+def marketplace():
+    if 'user_id' not in session:
+        return redirect('/login')
+
+    def parse_int(value):
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return None
+
+    def parse_float(value):
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return None
+
+    conn = get_db_connection()
+    products = []
+    categories = []
+
+    keyword = None
+    category_id = None
+    min_price = None
+    max_price = None
+
+    if conn:
+        cursor = conn.cursor(dictionary=True)
+        try:
+            cursor.execute("SELECT category_id, category_name FROM category ORDER BY category_id")
+            categories = cursor.fetchall()
+
+            keyword = (request.form.get('keyword') or request.args.get('keyword') or '').strip()
+            category_id = parse_int(request.form.get('category_id') or request.args.get('category_id'))
+            min_price = parse_float(request.form.get('min_price') or request.args.get('min_price'))
+            max_price = parse_float(request.form.get('max_price') or request.args.get('max_price'))
+
+            has_filters = any([
+                keyword,
+                category_id is not None,
+                min_price is not None,
+                max_price is not None
+            ])
+
+            if has_filters:
+                cursor.callproc('sp_SearchProducts', (
+                    keyword if keyword else None,
+                    category_id,
+                    min_price,
+                    max_price
+                ))
+
+                matching_ids = []
+                for result in cursor.stored_results():
+                    matching_ids.extend(row['product_id'] for row in result.fetchall())
+
+                matching_ids = list(dict.fromkeys(matching_ids))
+
+                if matching_ids:
+                    placeholders = ','.join(['%s'] * len(matching_ids))
+                    query = f"""
+                        SELECT 
+                            p.product_id,
+                            p.product_name,
+                            p.image_link,
+                            p.price,
+                            p.product_description,
+                            c.category_name,
+                            COALESCE(SUM(ct.quantity_in_stock), 0) AS total_stock,
+                            GROUP_CONCAT(DISTINCT s.store_name SEPARATOR ', ') AS store_names
+                        FROM products p
+                        JOIN category c ON p.category_id = c.category_id
+                        LEFT JOIN contain ct ON p.product_id = ct.product_id
+                        LEFT JOIN inventory i ON ct.inventory_id = i.inventory_id
+                        LEFT JOIN store s ON i.store_id = s.store_id
+                        WHERE p.product_id IN ({placeholders})
+                          AND p.product_name NOT LIKE '%[DELETED]%'
+                        GROUP BY p.product_id, p.product_name, p.image_link, p.price, p.product_description, c.category_name
+                        ORDER BY p.price ASC
+                    """
+                    cursor.execute(query, tuple(matching_ids))
+                    products = cursor.fetchall()
+                else:
+                    products = []
+                    flash("Không tìm thấy sản phẩm phù hợp.", "info")
+            else:
+                query = """
+                    SELECT 
+                        p.product_id,
+                        p.product_name,
+                        p.image_link,
+                        p.price,
+                        p.product_description,
+                        c.category_name,
+                        COALESCE(SUM(ct.quantity_in_stock), 0) AS total_stock,
+                        GROUP_CONCAT(DISTINCT s.store_name SEPARATOR ', ') AS store_names
+                    FROM products p
+                    JOIN category c ON p.category_id = c.category_id
+                    LEFT JOIN contain ct ON p.product_id = ct.product_id
+                    LEFT JOIN inventory i ON ct.inventory_id = i.inventory_id
+                    LEFT JOIN store s ON i.store_id = s.store_id
+                    WHERE p.product_name NOT LIKE '%[DELETED]%'
+                    GROUP BY p.product_id, p.product_name, p.image_link, p.price, p.product_description, c.category_name
+                    ORDER BY p.price ASC
+                """
+                cursor.execute(query)
+                products = cursor.fetchall()
+
+        except mysql.connector.Error as err:
+            flash(f"Lỗi thị trường: {err.msg}", "error")
+        finally:
+            cursor.close()
+            conn.close()
+
+    return render_template('marketplace.html', products=products, categories=categories)
 
 @app.route('/addProduct', methods=['GET', 'POST'])
 def add_product():
