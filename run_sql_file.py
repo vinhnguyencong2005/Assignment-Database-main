@@ -10,7 +10,7 @@ import re
 db_config = {
     'host': 'localhost',
     'user': 'root',
-    'password': 'giabao123',
+    'password': '22102005bobo',
     'charset': 'utf8mb4',
     'use_unicode': True
 }
